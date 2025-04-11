@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zoom Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #121212;
+            font-family: Arial, sans-serif;
+        }
+
+        h1, h2 {
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .row {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            margin: 10px 0;
+        }
+
+
+        .centered {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh; /* Full viewport height */
+            text-align: center;
+        }
+
+        button {
+            width: 70%;
+            padding: 20px;
+            margin: 10px;
+            font-size: 20px;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:active {
+            background-color: #3e8e41;
+        }
+
+        .zoomInButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .zoomOutButton {
+            background-color: #FF9800;
+            color: white;
+        }
+
+        .zoomInButton:hover {
+            background-color: #45a049;
+        }
+
+        .zoomOutButton:hover {
+            background-color: #e68900;
+        }
+
+        .squareButton {
+            width: 100px;
+            background-color: #007BFF;
+            color: white;
+            font-size: 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s, transform 0.1s;
+            margin: 10px;
+        }
+
+        #controllerScreen {
+            display: none;
+        }
+
+        #loginScreen input{
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+        }
+
+        #loginScreen button {
+            background-color: #007BFF;
+        }
+
+    </style>
+</head>
+<body>
+   
+    <!-- Login Screen -->
+    <div id="loginScreen" class="centered">
+        <h2>Enter Password</h2>
+        <input type="password" id="passwordInput" placeholder="Password">
+        <button onclick="submitPassword()">Login</button>
+    </div>
+
+    <!-- Controller Screen -->
+    <div id="controllerScreen" class="centered">
+        <h1>Zoom Controller</h1>
+
+        <button id="radarSatelliteToggleButton" onclick="toggleMode()">Mode: Radar</button>
+        <div class="row">
+            <button class="zoomInButton" onclick="sendCommand('in')">Zoom In</button>
+            <button class="zoomOutButton" onclick="sendCommand('out')">Zoom Out</button>
+        </div>
+
+        <div class="row">
+            <button id="radarModeToggleButton" onclick="toggleRadarMode()">Mode: Velocity 💨</button>
+            <button class="squareButton" id="loopToggleButton" onclick="toggleRadarPlayback()">▶️</button>
+        </div>
+    </div>
+
+     <script>
+            let currentMode = 'radar';
+            let currentRadarMode = 'reflectivity';
+            let isPlaying = false;
+            let PASSWORD = sessionStorage.getItem('password') || '';;
+
+            function onLoad() {
+                if (PASSWORD != '') {
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('controllerScreen').style.display = 'block';
+                }
+            }
+
+            function submitPassword() {
+                const input = document.getElementById('passwordInput').value.trim();
+
+                if (!input) {
+                    alert('Please enter a password');
+                    return;
+                }
+
+                fetch('/verify', {
+                    method: 'POST',
+                    headers: { 'x-password': input }
+                }).then(response => {
+                    if (response.ok) {
+                        PASSWORD = input;
+
+                        sessionStorage.setItem('password', PASSWORD);
+
+                        document.getElementById('loginScreen').style.display = 'none';
+                        document.getElementById('controllerScreen').style.display = 'block';
+                    } else {
+                        alert('Incorrect password');
+                    }
+                }).catch(error => {
+                    alert('Error verifying password');
+                });
+            }
+
+            function refreshPlayText() {
+                const button = document.getElementById('loopToggleButton');
+                if (isPlaying == false) {
+                    button.textContent = '▶️';
+                } else {
+                    button.textContent = '⏸️';
+                }
+            }
+
+            function sendCommand(direction) {
+                const body = `direction=${encodeURIComponent(direction)}&password=${encodeURIComponent(PASSWORD)}`
+
+                fetch('/zoom', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body
+                }).then(response => {
+                    if (!response.ok) {
+                        alert('Error: Unauthorized or bad request');
+                    } else {
+                        console.log('Command sent:', direction);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            }
+
+            function updateRadarModeText() {
+                if (currentRadarMode == 'reflectivity') {
+                    document.getElementById('radarModeToggleButton').textContent = 'Mode: Reflectivity 🌩️'; 
+                } else {
+                    document.getElementById('radarModeToggleButton').textContent = 'Mode: Velocity 💨';
+                }
+            }
+
+            function toggleRadarMode() {
+                isPlaying = false;
+                refreshPlayText();
+
+                if (currentRadarMode == 'reflectivity') {
+                    sendCommand('velocity');
+                    currentRadarMode = 'velocity';
+                    
+                } else {
+                    sendCommand('reflectivity');
+                    currentRadarMode = 'reflectivity';
+                }
+                updateRadarModeText();
+            }
+
+            function updateModeText() {
+                if (currentRadarMode == 'satellite') {
+                    document.getElementById('radarSatelliteToggleButton').textContent = 'Mode: Satellite';
+                    document.getElementById('radarModeToggleButton').style.display = 'none';
+                    document.getElementById('loopToggleButton').style.display = 'none';   
+                } else {
+                    document.getElementById('radarSatelliteToggleButton').textContent = 'Mode: Radar';
+                    document.getElementById('radarModeToggleButton').style.display = 'block';
+                    document.getElementById('loopToggleButton').style.display = 'block';
+                }
+            }
+
+            function toggleMode() {
+                isPlaying = false;
+                refreshPlayText();
+
+                if (currentRadarMode == 'radar') {
+                    sendCommand('satellite');
+                    currentRadarMode = 'satellite';
+                } else {
+                    sendCommand('radar');
+                    currentRadarMode = 'radar';
+                }
+
+                updateModeText();
+            }
+            function toggleRadarPlayback () {
+                const button = document.getElementById('loopToggleButton');
+
+                if (currentRadarMode == 'radar') {
+                    if (isPlaying == false) {
+                        sendCommand('playLoop');
+                        isPlaying = true;
+                        refreshPlayText();
+                    } else {
+                        sendCommand(currentRadarMode);
+                        isPlaying = false;
+                        refreshPlayText();
+                    }
+                }
+            }
+
+            onLoad();
+            updateModeText();
+            updateRadarModeText();
+        </script>
+</body>
+</html>
